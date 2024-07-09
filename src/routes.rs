@@ -1,16 +1,23 @@
 use rusoto_dynamodb::{AttributeValue, DynamoDb, DynamoDbClient, PutItemInput, GetItemInput};
 use actix_web::{post, web, HttpResponse, Responder, get};
+use serde::Deserialize;
 use crate::utils::shorten_url;
 use crate::models::Sauce;
 use std::collections::HashMap;
+use dotenv::dotenv;
+use std::env;
+pub struct AppState {
+   pub dynamodb_client: DynamoDbClient,
+}
 
-struct AppState {
-    dynamodb_client: DynamoDbClient,
+#[derive(Deserialize)]
+struct UrlPayload {
+	url: String,
 }
 
 #[post("/create_url")]
-async fn create_url(url: web::Json<String>, data: web::Data<AppState>) -> impl Responder {
-    let url = url.into_inner();
+async fn create_url(url: web::Json<UrlPayload>, data: web::Data<AppState>) -> impl Responder {
+    let url = url.into_inner().url;
     let client = &data.dynamodb_client;
     let short_url = shorten_url(&url);
     let item = Sauce::new(url.to_string(), short_url.to_string());
@@ -30,13 +37,16 @@ async fn create_url(url: web::Json<String>, data: web::Data<AppState>) -> impl R
     }
 }
 
-#[get("/{short_url}")]
-async fn redirect(short_url: web::Path<String>, data: web::Data<AppState>) -> impl Responder {
-    let short_url = short_url.into_inner();
-    let client = &data.dynamodb_client;
 
+#[get("/{id}")]
+async fn redirect(id: web::Path<String>, data: web::Data<AppState>) -> impl Responder {
+    dotenv().ok(); // Load environment variables
+    let base_url = env::var("BASE_URL").expect("BASE_URL must be set in .env file");
+    let full_url = format!("{}{}", base_url, id.into_inner()); // Construct the full URL
+
+    let client = &data.dynamodb_client;
     let mut key = HashMap::new();
-    key.insert("short_url".to_string(), AttributeValue { s: Some(short_url), ..Default::default() });
+    key.insert("full_url".to_string(), AttributeValue { s: Some(full_url.clone()), ..Default::default() });
 
     let request = GetItemInput {
         table_name: "YourTableName".to_string(),
@@ -45,12 +55,8 @@ async fn redirect(short_url: web::Path<String>, data: web::Data<AppState>) -> im
     };
     match client.get_item(request).await {
         Ok(output) => {
-            if let Some(item) = output.item {
-                if let Some(attr) = item.get("full_url") {
-                    if let Some(full_url) = &attr.s {
-                        return HttpResponse::Found().insert_header(("Location", full_url.to_string())).finish();
-                    }
-                }
+            if output.item.is_some() {
+                return HttpResponse::Found().insert_header(("Location", full_url.clone())).finish();
             }
             HttpResponse::NotFound().finish()
         },
