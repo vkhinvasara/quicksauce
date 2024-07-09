@@ -9,7 +9,7 @@ use dotenv::dotenv;
 
 const SHORT_URL_LENGTH: usize = 5;
 
-fn shorten_url(url: &str) -> String {
+pub fn shorten_url(url: &str) -> String {
 	let mut hasher = Sha256::new();
 	hasher.update(url);
 	let result = hasher.finalize();
