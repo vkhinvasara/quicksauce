@@ -49,7 +49,7 @@ async fn redirect(id: web::Path<String>, data: web::Data<AppState>) -> impl Resp
     key.insert("full_url".to_string(), AttributeValue { s: Some(full_url.clone()), ..Default::default() });
 
     let request = GetItemInput {
-        table_name: "YourTableName".to_string(),
+        table_name: "sauces".to_string(),
         key,
         ..Default::default()
     };
