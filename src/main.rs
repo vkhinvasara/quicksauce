@@ -3,15 +3,13 @@ mod routes;
 mod utils;
 mod errors;
 
-use std::sync::{Arc, Mutex};
 
 use actix_web::{App, HttpServer, web};
 use routes::AppState;
 use rusoto_core::Region;
-use rusoto_dynamodb::{DynamoDb, DynamoDbClient};
+use rusoto_dynamodb::DynamoDbClient;
 use env_logger;
 use log::info;
-
 
 
 #[actix_web::main]
