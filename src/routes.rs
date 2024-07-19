@@ -2,7 +2,8 @@ use crate::models::Sauce;
 use crate::utils::shorten_url;
 use actix_web::{get, post, web, HttpResponse, Responder};
 use dotenv::dotenv;
-use rusoto_dynamodb::{AttributeValue, DynamoDb, DynamoDbClient, GetItemInput, PutItemInput};
+use rusoto_core::RusotoError;
+use rusoto_dynamodb::{AttributeValue, DynamoDb, DynamoDbClient, GetItemInput, PutItemError, PutItemInput};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
@@ -20,7 +21,7 @@ async fn create_url(url: web::Json<UrlPayload>, data: web::Data<AppState>) -> im
     let url = url.into_inner().url;
     let client = &data.dynamodb_client;
     let (short_url, id) = shorten_url(&url);
-    let item = Sauce::new(id,url.to_string(), short_url.to_string());
+    let item = Sauce::new(id.clone(),url.to_string(), short_url.to_string());
     let mut attribute_values = HashMap::new();
     attribute_values.insert(
         "id".to_string(),
@@ -51,8 +52,34 @@ async fn create_url(url: web::Json<UrlPayload>, data: web::Data<AppState>) -> im
     };
     match client.put_item(input).await {
         Ok(_) => HttpResponse::Ok().body(short_url.clone()),
-        Err(e) => {
-            HttpResponse::InternalServerError().body(format!("Error creating short URL: {:?}", e))
+        Err(error) => match error{
+            RusotoError::Service(PutItemError::ConditionalCheckFailed(error_msg)) =>{ 
+                let mut key = HashMap::new();
+                key.insert(
+                    "id".to_string(),
+                    AttributeValue {
+                        s: Some(id.clone()),
+                        ..Default::default()
+                    },
+                );
+                let request = GetItemInput {
+                    table_name: "sauces".to_string(),
+                    key,
+                    ..Default::default()
+                };
+                match client.get_item(request).await {
+                    Ok(output) => {
+                        if output.item.is_some() {
+                            return HttpResponse::Ok().body(output.item.unwrap()["short_url"].s.clone().unwrap());
+                        }
+                        HttpResponse::NotFound().finish()
+                    }
+                    Err(err) => {
+                        HttpResponse::InternalServerError().body(format!("Error fetching short URL: {:?}", err))
+                    },
+                }
+            },
+        _=> HttpResponse::InternalServerError().body(format!("Error creating short URL: {:?}", error)),
         }
     }
 }
