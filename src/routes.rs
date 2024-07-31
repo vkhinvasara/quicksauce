@@ -6,7 +6,6 @@ use rusoto_core::RusotoError;
 use rusoto_dynamodb::{AttributeValue, DynamoDb, DynamoDbClient, GetItemInput, PutItemError, PutItemInput};
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::env;
 pub struct AppState {
     pub dynamodb_client: DynamoDbClient,
 }
@@ -20,8 +19,8 @@ struct UrlPayload {
 async fn create_url(url: web::Json<UrlPayload>, data: web::Data<AppState>) -> impl Responder {
     let url = url.into_inner().url;
     let client = &data.dynamodb_client;
-    let (short_url, id) = shorten_url(&url);
-    let item = Sauce::new(id.clone(),url.to_string(), short_url.to_string());
+    let (short_url, id) = shorten_url(&url).await;
+    let item = Sauce::new(id.clone()  ,url.to_string(), short_url.to_string());
     let mut attribute_values = HashMap::new();
     attribute_values.insert(
         "id".to_string(),
@@ -53,7 +52,7 @@ async fn create_url(url: web::Json<UrlPayload>, data: web::Data<AppState>) -> im
     match client.put_item(input).await {
         Ok(_) => HttpResponse::Ok().body(short_url.clone()),
         Err(error) => match error{
-            RusotoError::Service(PutItemError::ConditionalCheckFailed(error_msg)) =>{ 
+            RusotoError::Service(PutItemError::ConditionalCheckFailed(_)) =>{ 
                 let mut key = HashMap::new();
                 key.insert(
                     "id".to_string(),
