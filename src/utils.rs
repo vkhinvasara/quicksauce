@@ -3,14 +3,8 @@ use std::collections::HashMap;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use rusoto_core::Region;
 use rusoto_dynamodb::{AttributeValue, DynamoDb, DynamoDbClient, GetItemInput};
-// use rusoto_dynamodb::DynamoDbClient::{self, Region};
 use sha2::{Sha256, Digest};
 use dotenv::dotenv;
-
-/// Shortens a URL by hashing it and encoding the hash in base64.
-/// Returns the first 5 characters of the base64-encoded hash.
-/// Note: This method increases the risk of hash collisions.
-
 
 const SHORT_URL_LENGTH: usize = 5;
 
@@ -40,7 +34,7 @@ pub async fn shorten_url(url: &str) -> (String, String) {
 }
 
 async fn is_collision(code: &str) -> bool {
-	let client = DynamoDbClient::new(Region::ApSouth1);
+	let client = DynamoDbClient::new(Region::default());
 	let input = GetItemInput {
 		table_name: "sauces".to_string(),
 		key: {
